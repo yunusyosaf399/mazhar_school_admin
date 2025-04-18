@@ -1,0 +1,277 @@
+import 'package:flutter/material.dart';
+import 'package:mazhar/students/collect_fee.dart';
+import 'package:mazhar/students/exams.dart';
+import 'package:mazhar/manage_salary.dart';
+import 'package:mazhar/students/print_invoice.dart';
+import 'students/add_student.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'students/update_fee.dart';
+import 'teachers/add_teacher.dart';
+import 'package:intl/intl.dart';
+import 'teachers/count_teacher.dart';
+import 'students/students_count.dart';
+import 'database/removestudent.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize Supabase
+  await Supabase.initialize(
+    url: 'https://rcaemptrskatvfthacwe.supabase.co', // Replace with your Supabase URL
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjYWVtcHRyc2thdHZmdGhhY3dlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDM1MTY5MTQsImV4cCI6MjA1OTA5MjkxNH0._JY7lmioS0dNwEV2Vxbxi_wxgXY7PjtGPd1jR49z-Zg', // Replace with your Anon Key
+  );
+  FeeUpdater feeUpdater = FeeUpdater();
+  await feeUpdater.syncFeeRecords();
+  // Call updateSalary function
+  await updateSalary();
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'School Management',
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+      ),
+      home: const MyHomePage(),
+    );
+  }
+}
+
+Future<void> updateSalary() async {
+  final supabase = Supabase.instance.client;
+  final now = DateTime.now();
+  final currentMonth = DateFormat('yyyy-MM').format(now);
+  final firstDayOfMonth = DateTime(now.year, now.month, 1);
+  final lastDayOfMonth = DateTime(now.year, now.month + 1, 0); // Correct last day
+  final today = now.day;
+
+  if (today < 1 || today > 29) {
+    return; // Only run between the 25th and 29th
+  }
+
+  try {
+    // Fetch all active teachers
+    final teachers = await supabase
+        .from('teacher')
+        .select('serial_no, teacher_id, name, salary, resign_status');
+
+    for (var teacher in teachers) {
+      if (teacher['resign_status'] == true) continue; // Skip resigned teachers
+
+      // Check if salary record exists for this teacher for the current month
+      final existingRecord = await supabase
+          .from('salary')
+          .select('serial_no')
+          .eq('serial_no', teacher['serial_no'])
+          .gte('created_at', firstDayOfMonth.toIso8601String())
+          .lte('created_at', lastDayOfMonth.toIso8601String())
+          .maybeSingle();
+
+      if (existingRecord == null) {
+        // Insert new salary record if it doesn't exist
+        await supabase.from('salary').insert({
+          'serial_no': teacher['serial_no'],
+          'teacher_id': teacher['teacher_id'],
+          'name': teacher['name'],
+          'salary': teacher['salary'],
+          'amount_paid': 0,
+          'status': 'pending',
+          'resign_status': teacher['resign_status'],
+          'created_at': now.toIso8601String(),
+          'updated_at': now.toIso8601String(),
+        });
+      }
+    }
+  } catch (e) {
+    print('Error updating salary records: $e');
+  }
+}
+
+
+class MyHomePage extends StatelessWidget {
+  const MyHomePage({super.key});
+  Future<void> _handleUpdate() async {
+    FeeUpdater feeUpdater = FeeUpdater();
+    await feeUpdater.syncFeeRecords();
+    await updateSalary();
+  }
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Dashboard'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.update),
+            tooltip: 'Update Data',
+            onPressed: () async {
+              await _handleUpdate();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Data updated successfully!')),
+              );
+            },
+          ),
+        ],
+      ),
+      drawer: Drawer(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: <Widget>[
+            const DrawerHeader(
+              decoration: BoxDecoration(
+                color: Colors.deepPurple,
+              ),
+              child: Text(
+                'Menu',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                ),
+              ),
+            ),
+            _buildExpansionTile('Students', Icons.school, [
+              _buildListTile('Add', context, () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const AddStudentPage()),
+                );
+              }),
+              _buildListTile('Remove', context, () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const RemoveStudentScreen()),
+                );
+              }),
+              _buildListTile('Print Invoice', context, () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const PrintInvoicePage()),
+                );
+              }),
+              _buildListTile('Collect Fee', context, () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const CollectFeePage()),
+                );
+              }),
+            ]),
+            _buildExpansionTile('Teachers', Icons.person, [
+              _buildListTile('Add', context, () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => AddTeacherScreen()),
+                );
+              }),
+              _buildListTile('Remove', context, () {}),
+              _buildListTile('Manage Salary', context, () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => ManageSalaryScreen()),
+                );
+              }),
+            ]),
+            _buildExpansionTile('Class', Icons.class_, [
+              _buildListTile('Create Timetable', context, () {}),
+              _buildListTile('Find Class', context, () {}),
+            ]),
+            _buildExpansionTile('Exams', Icons.assignment, [
+              _buildListTile('Result', context, () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => AssignExamResultScreen()),
+                );
+              }),
+              _buildListTile('Test', context, () {}),
+              _buildListTile('Exam Schedule', context, () {}),
+              _buildListTile('DMC', context, () {}),
+            ]),
+          ],
+        ),
+      ),
+      body: Column(
+        children: [
+          // School Logo and Name at the Top
+          Container(
+            padding: const EdgeInsets.all(16.0),
+            decoration: BoxDecoration(
+              color: Colors.deepPurple.shade100, // Light purple background (optional)
+              borderRadius: const BorderRadius.only(
+                bottomLeft: Radius.circular(20),
+                bottomRight: Radius.circular(20),
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center, // Centers horizontally
+              children: [
+                Image.asset(
+                  'assets/images/logo.png', // Ensure this image exists in assets
+                  height: 80, // Adjust size as needed
+                ),
+                const SizedBox(width: 12),
+                const Text(
+                  "Mazhar Public School and Dar-Ul-Uloom Azizia",
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.deepPurple,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Space between the header and content
+          const SizedBox(height: 20),
+
+          /// **Display Student and Teacher Count in One Line**
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                Expanded(child: StudentsCount()), // Expands to fit space
+                const SizedBox(width: 10), // Adds spacing
+                Expanded(child: TeachersCount()), // Expands to fit space
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+
+
+          // Dashboard Content
+          const Center(
+            child: Text(
+              'Welcome to the Dashboard!',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+          ),
+
+        ],
+      ),
+
+    );
+  }
+
+  Widget _buildExpansionTile(String title, IconData icon, List<Widget> children) {
+    return ExpansionTile(
+      leading: Icon(icon, color: Colors.deepPurple),
+      title: Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+      children: children,
+    );
+  }
+
+  Widget _buildListTile(String title, BuildContext context, VoidCallback onTap) {
+    return ListTile(
+      title: Text(title),
+      onTap: () {
+        Navigator.pop(context);
+        onTap();
+      },
+    );
+  }
+}
