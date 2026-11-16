@@ -1,7 +1,9 @@
 name: Keep Supabase Alive
 
 on:
-  # Scheduled trigger will be enabled after a successful live test.
+  # Once daily at 05:17 UTC.
+  schedule:
+    - cron: "17 5 * * *"
   # Also run immediately when this workflow is changed on main.
   push:
     branches: [main]
