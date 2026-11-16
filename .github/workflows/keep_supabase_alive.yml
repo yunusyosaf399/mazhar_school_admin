@@ -1,0 +1,60 @@
+name: Keep Supabase Alive
+
+on:
+  # Run three times a day (UTC) to maintain regular database activity.
+  schedule:
+    - cron: "17 1,9,17 * * *"
+  # Also run immediately when this workflow is changed on main.
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/keep_supabase_alive.yml"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: supabase-keepalive
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    name: Ping Supabase REST API
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
+    steps:
+      - name: Check required secrets and database response
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          if [[ -z "${SUPABASE_URL:-}" || -z "${SUPABASE_SERVICE_KEY:-}" ]]; then
+            echo "::error::Missing SUPABASE_URL or SUPABASE_SERVICE_KEY repository Actions secret."
+            exit 1
+          fi
+
+          # Use the existing read-only request to the results table.
+          # Never print the credentials or any student data in public logs.
+          endpoint="${SUPABASE_URL%/}/rest/v1/results?select=id&limit=1"
+
+          if ! status=$(curl --silent --show-error --fail \
+              --connect-timeout 10 --max-time 30 \
+              --retry 2 --retry-all-errors \
+              --output /dev/null --write-out '%{http_code}' \
+              -H "apikey: ${SUPABASE_SERVICE_KEY}" \
+              -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
+              "$endpoint"); then
+            echo "::error::Supabase request failed (network, authentication, API error or paused project)."
+            exit 1
+          fi
+
+          if [[ "$status" != "200" ]]; then
+            echo "::error::Supabase returned unexpected HTTP status $status."
+            exit 1
+          fi
+
+          echo "Supabase API responded successfully (HTTP 200)."
