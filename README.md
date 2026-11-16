@@ -2,7 +2,7 @@
 
 This repository's active branch contains only a scheduled GitHub Actions workflow for lightweight Supabase API activity. The application source code has been removed from the active branch, and main has a fresh root history.
 
-**Important:** Removing files from the active branch does **not** remove their contents from previous Git commits. Review or rewrite the repository history before changing the repository to public.
+**History notice:** The main branch has a new root history, but GitHub's historic pull-request references and cached commit URLs may still expose earlier source files. Deleting branches is not enough to expunge those references. Review historic credentials, rotate any privileged keys, and arrange pull-request reference/cache removal or use a newly created repository for full separation.
 
 ## Schedule
 
