@@ -1,9 +1,7 @@
 name: Keep Supabase Alive
 
 on:
-  # Run three times a day (UTC) to maintain regular database activity.
-  schedule:
-    - cron: "17 1,9,17 * * *"
+  # Scheduled trigger will be enabled after a successful live test.
   # Also run immediately when this workflow is changed on main.
   push:
     branches: [main]
