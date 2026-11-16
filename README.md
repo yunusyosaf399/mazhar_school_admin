@@ -1,12 +1,12 @@
 # Mazhar School — Supabase Keep-Alive
 
-This repository's active branch contains only a scheduled GitHub Actions workflow for lightweight Supabase API activity. The application source code has been removed from the active branch.
+This repository's active branch contains only a scheduled GitHub Actions workflow for lightweight Supabase API activity. The application source code has been removed from the active branch, and main has a fresh root history.
 
 **Important:** Removing files from the active branch does **not** remove their contents from previous Git commits. Review or rewrite the repository history before changing the repository to public.
 
 ## Schedule
 
-The workflow runs every day at **01:17, 09:17 and 17:17 UTC** (three requests daily), supports manual runs, and runs on workflow-file updates for verification.
+The workflow runs every day at **05:17 UTC** (one request daily), supports manual runs, and runs on workflow-file updates for verification.
 
 ## Configuration
 
